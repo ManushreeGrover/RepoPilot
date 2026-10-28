@@ -1,0 +1,22 @@
+# Dependencies
+node_modules/
+dist/
+build/
+out/
+.next/
+.nuxt/
+coverage/
+
+# Environment files — NEVER commit these
+.env
+.env.local
+.env.*.local
+
+# Editor / OS
+.DS_Store
+*.log
+.vscode/settings.json
+
+# Secrets
+*.pem
+*.key
