@@ -71,3 +71,21 @@ export interface FileContent {
   lines: LineEntry[];
   isTruncated: boolean;
 }
+
+export interface Citation {
+  file: string;
+  line: number;
+  snippet: string;
+}
+
+export interface AiAnswer {
+  answer: string;
+  citations: Citation[];
+}
+
+export interface AiEnhancement {
+  frameworks: string[];
+  entryPoints: Array<{ relativePath: string; description: string }>;
+  routes: Array<{ method: string; path: string; file: string; line: number }>;
+  runCommands: string[];
+}

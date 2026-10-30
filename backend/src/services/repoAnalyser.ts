@@ -77,6 +77,8 @@ const ALWAYS_IGNORE_DIRS = new Set([
   '.parcel-cache', '.turbo', 'tmp', 'temp', '.expo', '.svelte-kit',
   // Python virtual environments
   '.venv', 'venv', 'env', '.env', 'virtualenv', 'site-packages',
+  // Tool/config directories — not application code
+  '.claude', '.cursor', '.idea', '.vscode',
 ]);
 
 const CONFIG_FILE_NAMES = new Set([
@@ -233,43 +235,48 @@ function detectLanguages(files: WalkedFile[]): LanguageInfo[] {
     .sort((a, b) => b.fileCount - a.fileCount);
 }
 
-function detectFrameworks(rootPath: string): string[] {
+function detectFrameworks(rootPath: string, files: WalkedFile[]): string[] {
   const found: string[] = [];
 
-  // JavaScript / TypeScript project
-  const pkgPath = path.join(rootPath, 'package.json');
-  if (fs.existsSync(pkgPath)) {
+  // Build a quick lookup: basename → list of matching walked files
+  const byName = new Map<string, WalkedFile[]>();
+  for (const f of files) {
+    const base = path.basename(f.relativePath);
+    if (!byName.has(base)) byName.set(base, []);
+    byName.get(base)!.push(f);
+  }
+
+  function readFirst(name: string): string | null {
+    // Check root first, then walked subdirectories
+    const rootFile = path.join(rootPath, name);
+    if (fs.existsSync(rootFile)) {
+      try { return fs.readFileSync(rootFile, 'utf8'); } catch { /* skip */ }
+    }
+    for (const f of byName.get(name) ?? []) {
+      try { return fs.readFileSync(f.absolutePath, 'utf8'); } catch { /* skip */ }
+    }
+    return null;
+  }
+
+  // JavaScript / TypeScript
+  const pkgContent = readFirst('package.json');
+  if (pkgContent) {
     try {
-      const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8')) as Record<string, unknown>;
+      const pkg = JSON.parse(pkgContent) as Record<string, unknown>;
       const deps = {
         ...(pkg.dependencies as Record<string, string> ?? {}),
         ...(pkg.devDependencies as Record<string, string> ?? {}),
       };
-
       const checks: [string, string][] = [
-        ['react', 'React'],
-        ['vue', 'Vue'],
-        ['@angular/core', 'Angular'],
-        ['svelte', 'Svelte'],
-        ['express', 'Express'],
-        ['@nestjs/core', 'NestJS'],
-        ['next', 'Next.js'],
-        ['nuxt', 'Nuxt'],
-        ['vite', 'Vite'],
-        ['fastify', 'Fastify'],
-        ['koa', 'Koa'],
-        ['prisma', 'Prisma'],
-        ['@prisma/client', 'Prisma'],
-        ['mongoose', 'Mongoose'],
-        ['sequelize', 'Sequelize'],
-        ['typeorm', 'TypeORM'],
-        ['drizzle-orm', 'Drizzle ORM'],
-        ['graphql', 'GraphQL'],
-        ['@apollo/server', 'Apollo'],
-        ['socket.io', 'Socket.IO'],
-        ['jest', 'Jest'],
-        ['vitest', 'Vitest'],
-        ['tailwindcss', 'Tailwind CSS'],
+        ['react', 'React'], ['vue', 'Vue'], ['@angular/core', 'Angular'],
+        ['svelte', 'Svelte'], ['express', 'Express'], ['@nestjs/core', 'NestJS'],
+        ['next', 'Next.js'], ['nuxt', 'Nuxt'], ['vite', 'Vite'],
+        ['fastify', 'Fastify'], ['koa', 'Koa'], ['prisma', 'Prisma'],
+        ['@prisma/client', 'Prisma'], ['mongoose', 'Mongoose'],
+        ['sequelize', 'Sequelize'], ['typeorm', 'TypeORM'],
+        ['drizzle-orm', 'Drizzle ORM'], ['graphql', 'GraphQL'],
+        ['@apollo/server', 'Apollo'], ['socket.io', 'Socket.IO'],
+        ['jest', 'Jest'], ['vitest', 'Vitest'], ['tailwindcss', 'Tailwind CSS'],
       ];
       for (const [dep, label] of checks) {
         if (deps[dep]) found.push(label);
@@ -277,39 +284,45 @@ function detectFrameworks(rootPath: string): string[] {
     } catch { /* malformed package.json */ }
   }
 
-  // Python
-  const reqPath = path.join(rootPath, 'requirements.txt');
-  if (fs.existsSync(reqPath)) {
+  // Python — check all requirements.txt files found anywhere in the repo
+  const reqFiles = byName.get('requirements.txt') ?? [];
+  if (fs.existsSync(path.join(rootPath, 'requirements.txt'))) {
+    reqFiles.unshift({ absolutePath: path.join(rootPath, 'requirements.txt'), relativePath: 'requirements.txt', extension: '.txt', sizeBytes: 0 });
+  }
+  for (const rf of reqFiles) {
     try {
-      const content = fs.readFileSync(reqPath, 'utf8').toLowerCase();
+      const content = fs.readFileSync(rf.absolutePath, 'utf8').toLowerCase();
       if (content.includes('django')) found.push('Django');
       if (content.includes('flask')) found.push('Flask');
       if (content.includes('fastapi')) found.push('FastAPI');
       if (content.includes('sqlalchemy')) found.push('SQLAlchemy');
+      if (content.includes('langchain')) found.push('LangChain');
+      if (content.includes('openai')) found.push('OpenAI');
+      if (content.includes('anthropic')) found.push('Anthropic SDK');
+      if (content.includes('google-generativeai') || content.includes('google-genai')) found.push('Gemini');
+      if (content.includes('pytest')) found.push('pytest');
     } catch { /* skip */ }
   }
 
   // Go
-  const goModPath = path.join(rootPath, 'go.mod');
-  if (fs.existsSync(goModPath)) {
-    try {
-      const content = fs.readFileSync(goModPath, 'utf8');
-      found.push('Go Modules');
-      if (content.includes('github.com/gin-gonic/gin')) found.push('Gin');
-      if (content.includes('github.com/gofiber/fiber')) found.push('Fiber');
-      if (content.includes('github.com/labstack/echo')) found.push('Echo');
-    } catch { /* skip */ }
+  const goContent = readFirst('go.mod');
+  if (goContent) {
+    found.push('Go Modules');
+    if (goContent.includes('github.com/gin-gonic/gin')) found.push('Gin');
+    if (goContent.includes('github.com/gofiber/fiber')) found.push('Fiber');
+    if (goContent.includes('github.com/labstack/echo')) found.push('Echo');
   }
 
   // Rust
-  if (fs.existsSync(path.join(rootPath, 'Cargo.toml'))) found.push('Rust / Cargo');
+  if (readFirst('Cargo.toml')) found.push('Rust / Cargo');
 
-  // Docker
-  if (fs.existsSync(path.join(rootPath, 'Dockerfile'))) found.push('Docker');
-  if (
-    fs.existsSync(path.join(rootPath, 'docker-compose.yml')) ||
-    fs.existsSync(path.join(rootPath, 'docker-compose.yaml'))
-  ) found.push('Docker Compose');
+  // Docker — check root and subdirs
+  const hasDockerfile = fs.existsSync(path.join(rootPath, 'Dockerfile')) || (byName.get('Dockerfile')?.length ?? 0) > 0;
+  const hasCompose = fs.existsSync(path.join(rootPath, 'docker-compose.yml'))
+    || fs.existsSync(path.join(rootPath, 'docker-compose.yaml'))
+    || (byName.get('docker-compose.yml')?.length ?? 0) > 0;
+  if (hasDockerfile) found.push('Docker');
+  if (hasCompose) found.push('Docker Compose');
 
   return [...new Set(found)];
 }
@@ -353,14 +366,28 @@ function findEntryPoints(rootPath: string, files: WalkedFile[]): FileRef[] {
   const fileSet = new Set(files.map(f => f.relativePath.replace(/\\/g, '/')));
   const found: FileRef[] = [];
 
+  // Check exact patterns first (root-level and src/)
   for (const pattern of ENTRY_POINT_PATTERNS) {
     if (fileSet.has(pattern)) {
-      found.push({
-        relativePath: pattern,
-        absolutePath: path.join(rootPath, pattern),
-      });
+      found.push({ relativePath: pattern, absolutePath: path.join(rootPath, pattern) });
     }
   }
+
+  // Also match entry-point filenames at one level deep (e.g. my_agent/main.py)
+  const ENTRY_NAMES = new Set(['main.py', 'app.py', 'manage.py', 'main.go', 'main.ts', 'main.js', 'index.ts', 'index.js', 'server.ts', 'server.js']);
+  if (found.length === 0) {
+    for (const f of files) {
+      const base = path.basename(f.relativePath);
+      const depth = f.relativePath.split(/[/\\]/).length;
+      if (depth <= 3 && ENTRY_NAMES.has(base)) {
+        const rel = f.relativePath.replace(/\\/g, '/');
+        if (!found.some(e => e.relativePath === rel)) {
+          found.push({ relativePath: rel, absolutePath: f.absolutePath });
+        }
+      }
+    }
+  }
+
   return found;
 }
 
@@ -462,7 +489,14 @@ function detectApiRoutes(files: WalkedFile[], rootPath: string): ApiRoute[] {
     }
   }
 
-  return routes;
+  // Deduplicate: keep first occurrence of each method+path combo
+  const seen = new Set<string>();
+  return routes.filter(r => {
+    const key = `${r.method}:${r.path}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 function readReadme(rootPath: string): string | null {
@@ -499,7 +533,7 @@ export function analyseRepository(rootPath: string): RepoOverview {
     name: path.basename(resolved),
     rootPath: resolved,
     languages: detectLanguages(files),
-    frameworks: detectFrameworks(resolved),
+    frameworks: detectFrameworks(resolved, files),
     entryPoints: findEntryPoints(resolved, files),
     configFiles: findConfigFiles(resolved, files),
     directories: getTopDirectories(resolved, ig),

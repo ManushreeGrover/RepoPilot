@@ -129,8 +129,8 @@ input, textarea {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 16px;
-  min-width: 0;       /* lets grid children shrink below their content size */
-  overflow: hidden;   /* prevents long paths / code from blowing out the card */
+  min-width: 0;     /* lets grid children shrink below their content size */
+  overflow: visible; /* don't clip content — individual elements handle their own overflow */
 }
 
 /* ─── Badge ────────────────────────────────────────────────────────────────── */
@@ -302,25 +302,13 @@ input, textarea {
   border-bottom: 1px solid var(--border);
   gap: 8px;
   min-width: 0;
+  flex-wrap: wrap;
 }
 .dir-row:last-child { border-bottom: none; }
-.dir-name { font-family: var(--font-mono); font-size: 12px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex-shrink: 0; max-width: 120px; }
-.dir-desc { font-size: 11px; color: var(--text-muted); flex: 1; padding: 0 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dir-name { font-family: var(--font-mono); font-size: 12px; color: var(--text); overflow-wrap: anywhere; word-break: break-all; }
+.dir-desc { font-size: 11px; color: var(--text-muted); flex: 1; padding: 0 8px; min-width: 60px; }
 .dir-count { font-size: 11px; color: var(--text-dim); white-space: nowrap; flex-shrink: 0; }
 
-.route-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 5px 0;
-  border-bottom: 1px solid var(--border);
-  font-size: 12px;
-  min-width: 0;
-}
-.dir-row:last-child { border-bottom: none; }
-.dir-name { font-family: var(--font-mono); font-size: 12px; color: var(--text); flex-shrink: 0; }
-.dir-desc { font-size: 11px; color: var(--text-muted); flex: 1; padding: 0 8px; overflow-wrap: anywhere; }
-.dir-count { font-size: 11px; color: var(--text-dim); white-space: nowrap; flex-shrink: 0; }
 
 /* Route rows: always 2 lines — method+path on top, file ref below */
 .route-row {
@@ -410,8 +398,8 @@ input, textarea {
 }
 
 .results-panel {
-  width: 340px;
-  flex-shrink: 0;
+  flex: 1;
+  min-height: 0;
   border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
@@ -541,3 +529,42 @@ input, textarea {
 
 /* highlight.js overrides */
 .hljs { background: transparent !important; padding: 0 !important; }
+
+/* ─── AI answer markdown ───────────────────────────────────────────────────── */
+.ai-answer { font-size: 13px; line-height: 1.75; color: var(--text); }
+.ai-answer h1, .ai-answer h2, .ai-answer h3 {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  margin: 14px 0 6px;
+}
+.ai-answer h1 { font-size: 14px; }
+.ai-answer p { margin: 0 0 10px; }
+.ai-answer p:last-child { margin-bottom: 0; }
+.ai-answer ul, .ai-answer ol { padding-left: 18px; margin: 0 0 10px; }
+.ai-answer li { margin-bottom: 4px; }
+.ai-answer strong { color: var(--text); font-weight: 600; }
+.ai-answer code {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 1px 5px;
+  color: var(--primary-h);
+}
+.ai-answer pre {
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 10px 12px;
+  overflow-x: auto;
+  margin: 8px 0;
+}
+.ai-answer pre code {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 12px;
+  color: var(--text);
+}

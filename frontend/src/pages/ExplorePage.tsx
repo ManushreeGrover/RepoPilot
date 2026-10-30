@@ -31,7 +31,7 @@ export default function ExplorePage({ repoPath, onGoHome }: Props) {
     <div className="page">
       <div className="explore-body">
         {/* Left column: search bar + results list */}
-        <div style={{ display: 'flex', flexDirection: 'column', width: 340, flexShrink: 0, borderRight: '1px solid var(--border)' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', width: 340, flexShrink: 0, overflow: 'hidden' }}>
           <SearchPanel repoPath={repoPath} onSelect={handleSelect} />
         </div>
 

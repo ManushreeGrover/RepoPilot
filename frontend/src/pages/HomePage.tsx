@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import type { RepoOverview } from '../types/index.js';
-import { fetchOverview } from '../api/repoApi.js';
+import type { RepoOverview, AiEnhancement } from '../types/index.js';
+import { fetchOverview, fetchEnhancement } from '../api/repoApi.js';
 import RepoOverviewComponent from '../components/RepoOverview.js';
 import FileViewer from '../components/FileViewer.js';
+import AiPanel from '../components/AiPanel.js';
 
 interface Props {
   repoPath: string;
@@ -13,8 +14,10 @@ interface Props {
 export default function HomePage({ repoPath, overview, onRepoLoaded }: Props) {
   const [inputPath, setInputPath] = useState(repoPath);
   const [loading, setLoading] = useState(false);
+  const [enhancing, setEnhancing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [openFile, setOpenFile] = useState<{ path: string; line?: number } | null>(null);
+  const [enhancement, setEnhancement] = useState<AiEnhancement | null>(null);
 
   async function handleAnalyse(e: React.FormEvent) {
     e.preventDefault();
@@ -23,15 +26,36 @@ export default function HomePage({ repoPath, overview, onRepoLoaded }: Props) {
     setLoading(true);
     setError(null);
     setOpenFile(null);
+    setEnhancement(null);
     try {
       const result = await fetchOverview(p);
       onRepoLoaded(p, result);
+
+      // Run AI enhancement in background — don't block the overview from showing
+      setEnhancing(true);
+      fetchEnhancement(p)
+        .then(e => setEnhancement(e))
+        .catch(() => { /* silently skip if no API key or error */ })
+        .finally(() => setEnhancing(false));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Analysis failed');
     } finally {
       setLoading(false);
     }
   }
+
+  // Merge AI enhancement into overview — AI results take priority if they found more
+  const mergedOverview: RepoOverview | null = overview && enhancement ? {
+    ...overview,
+    frameworks: enhancement.frameworks.length > 0
+      ? [...new Set([...enhancement.frameworks, ...overview.frameworks])]
+      : overview.frameworks,
+    entryPoints: enhancement.entryPoints.length > 0
+      ? enhancement.entryPoints.map(ep => ({ relativePath: ep.relativePath, absolutePath: '' }))
+      : overview.entryPoints,
+    apiRoutes: enhancement.routes.length > 0 ? enhancement.routes : overview.apiRoutes,
+    runCommands: enhancement.runCommands.length > 0 ? enhancement.runCommands : overview.runCommands,
+  } : overview;
 
   return (
     <div className="page" style={{ flexDirection: 'row' }}>
@@ -82,7 +106,25 @@ export default function HomePage({ repoPath, overview, onRepoLoaded }: Props) {
             )}
 
             {overview && (
-              <RepoOverviewComponent overview={overview} onOpenFile={(f, l) => setOpenFile({ path: f, line: l })} />
+              <>
+                <RepoOverviewComponent
+                  overview={mergedOverview ?? overview}
+                  onOpenFile={(f, l) => setOpenFile({ path: f, line: l })}
+                />
+                {enhancing && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-dim)', fontSize: 12 }}>
+                    <span className="spinner" style={{ width: 12, height: 12 }} />
+                    AI enhancing frameworks, entry points &amp; routes…
+                  </div>
+                )}
+                <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+                  <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontSize: 13, fontWeight: 600 }}>Ask AI</span>
+                    <span className="badge badge-primary">Gemini</span>
+                  </div>
+                  <AiPanel repoPath={overview.rootPath} onOpenFile={(f, l) => setOpenFile({ path: f, line: l })} />
+                </div>
+              </>
             )}
           </div>
         </div>

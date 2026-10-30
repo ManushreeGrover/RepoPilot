@@ -1,6 +1,8 @@
+import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import repoRouter from './routes/repo.js';
+import aiRouter from './routes/ai.js';
 
 const app = express();
 const PORT = process.env.PORT ?? 3001;
@@ -23,10 +25,11 @@ app.use((req, _res, next) => {
 // ─── Routes ───────────────────────────────────────────────────────────────────
 
 app.get('/api/health', (_req, res) => {
-  res.json({ status: 'ok', version: '1.0.0', milestone: 1 });
+  res.json({ status: 'ok', version: '1.0.0', milestone: 2 });
 });
 
 app.use('/api/repo', repoRouter);
+app.use('/api/ai', aiRouter);
 
 // ─── 404 handler ─────────────────────────────────────────────────────────────
 

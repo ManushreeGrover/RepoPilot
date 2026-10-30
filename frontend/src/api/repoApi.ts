@@ -1,4 +1,4 @@
-import type { RepoOverview, SearchResult, FileContent } from '../types/index.js';
+import type { RepoOverview, SearchResult, FileContent, AiAnswer, AiEnhancement } from '../types/index.js';
 
 const BASE = '/api';
 
@@ -36,4 +36,30 @@ export async function fetchFile(
   if (options?.startLine) params.set('startLine', String(options.startLine));
   if (options?.endLine) params.set('endLine', String(options.endLine));
   return get<FileContent>(`${BASE}/repo/file?${params.toString()}`);
+}
+
+export async function askQuestion(repoPath: string, question: string): Promise<AiAnswer> {
+  const res = await fetch(`${BASE}/ai/ask`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repoPath, question }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({})) as { error?: string };
+    throw new Error(body.error ?? `AI request failed: ${res.status}`);
+  }
+  return res.json() as Promise<AiAnswer>;
+}
+
+export async function fetchEnhancement(repoPath: string): Promise<AiEnhancement> {
+  const res = await fetch(`${BASE}/ai/enhance`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repoPath }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({})) as { error?: string };
+    throw new Error(body.error ?? `Enhancement failed: ${res.status}`);
+  }
+  return res.json() as Promise<AiEnhancement>;
 }

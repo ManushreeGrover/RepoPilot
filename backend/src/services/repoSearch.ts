@@ -27,6 +27,8 @@ const ALWAYS_IGNORE_DIRS = new Set([
   '.parcel-cache', '.turbo', 'tmp', 'temp',
   // Python virtual environments
   '.venv', 'venv', 'env', '.env', 'virtualenv', 'site-packages',
+  // Tool/config directories — not application code
+  '.claude', '.cursor', '.idea', '.vscode',
 ]);
 
 const TEXT_EXTENSIONS = new Set([
